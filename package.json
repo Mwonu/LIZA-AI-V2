@@ -1,0 +1,19 @@
+{
+  "name": "liza-ai-v2",
+  "version": "2.0.0",
+  "description": "Modular WhatsApp Bot by Chank!nd3 p4d4y41!",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.5.0",
+    "@hapi/boom": "^10.0.1",
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "pino": "^8.16.0",
+    "fs-extra": "^11.1.1",
+    "path": "^0.12.7"
+  },
+  "author": "Chank!nd3 p4d4y41!"
+}
