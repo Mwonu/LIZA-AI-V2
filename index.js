@@ -1,5 +1,5 @@
 /**
- * LIZA-AI V2 - Core Engine
+ * LIZA-AI V2 - Core Engine (Plugin Enabled)
  * Optimized for Railway Deployment
  * Developer: (hank!nd3 p4d4y41!)
  */
@@ -23,6 +23,31 @@ const {
 const NodeCache = require("node-cache")
 const pino = require("pino")
 const express = require('express');
+
+// --- 📂 PLUGIN LOADER (hank!nd3 p4d4y41!) ---
+global.plugins = new Map();
+const pluginFolder = path.join(__dirname, 'plugins');
+
+function loadPlugins() {
+    if (!fs.existsSync(pluginFolder)) fs.mkdirSync(pluginFolder);
+    const pluginFiles = fs.readdirSync(pluginFolder).filter(file => file.endsWith('.js'));
+    
+    for (const file of pluginFiles) {
+        try {
+            const plugin = require(path.join(pluginFolder, file));
+            // കമാൻഡ് ലിസ്റ്റ് സൂക്ഷിക്കാൻ
+            if (plugin.command) {
+                global.plugins.set(file, plugin);
+            }
+        } catch (e) {
+            console.log(chalk.red(`❌ Error loading plugin ${file}: ` + e.message));
+        }
+    }
+    console.log(chalk.green(`✅ Successfully loaded ${global.plugins.size} plugins!`));
+}
+
+// പ്ലഗിനുകൾ ലോഡ് ചെയ്യുന്നു
+loadPlugins();
 
 // --- 🌐 RAILWAY SERVER SETUP ---
 const app = express();
@@ -130,6 +155,7 @@ async function startLizaBot() {
                     return;
                 }
 
+                // മെസ്സേജുകൾ ഹാൻഡിൽ ചെയ്യാൻ main.js-ലേക്ക് അയക്കുന്നു
                 await handleMessages(sock, chatUpdate)
             } catch (err) {
                 console.error('Upsert Error:', err)
