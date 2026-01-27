@@ -53,7 +53,7 @@ loadPlugins();
 
 // --- 🌐 RAILWAY SERVER SETUP ---
 const app = express();
-const port = process.env.PORT || 8080; // ലോഗ്സിൽ 8080 ആയതുകൊണ്ട് അത് ഡിഫോൾട്ട് ആക്കി
+const port = process.env.PORT || 8080; 
 
 app.get('/', (req, res) => { res.send('LIZA-AI V2 is Running Successfully!'); });
 app.listen(port, "0.0.0.0", () => { 
@@ -108,7 +108,7 @@ async function startLizaBot() {
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
             },
             markOnlineOnConnect: true,
-            syncFullHistory: false,
+            syncFullHistory: false, // ഹിസ്റ്ററി സിങ്കിംഗ് കുറയ്ക്കുന്നു
             msgRetryCounterCache,
             connectTimeoutMs: 60000,
             defaultQueryTimeoutMs: 0,
@@ -120,7 +120,7 @@ async function startLizaBot() {
 
         sock.ev.on('connection.update', async (s) => {
             const { connection, lastDisconnect } = s
-            if (connection === 'connecting') console.log(chalk.yellow('🔄 LIZA-AI is connecting to WhatsApp...'))
+            if (connection === 'connecting') console.log(chalk.yellow('🔄 LIZA-AI is connecting...'))
             
             if (connection === "open") {
                 console.log(chalk.blue.bold(`\n---------------------------------`));
@@ -128,24 +128,24 @@ async function startLizaBot() {
                 console.log(chalk.white(`👨‍💻 Dev: (hank!nd3 p4d4y41!)`));
                 console.log(chalk.blue.bold(`---------------------------------\n`));
                 
-                // കണക്ഷൻ സ്റ്റേബിൾ ആകാൻ 3 സെക്കൻഡ് വെയിറ്റ് ചെയ്യുന്നു
-                await delay(3000);
-                
-                try {
-                    const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                    await sock.sendMessage(botNumber, { 
-                        text: `🤖 *LIZA-AI V2 IS LIVE!*\n\n*Status:* Connected Successfully\n*Mode:* ${config.MODE}\n*Developer:* (hank!nd3 p4d4y41!)` 
-                    });
-                } catch (e) {
-                    console.log(chalk.red('⚠️ Startup message send failed: ' + e.message));
-                }
+                // --- സുരക്ഷിതമായ സ്റ്റാർട്ടപ്പ് നോട്ടിഫിക്കേഷൻ ---
+                setTimeout(async () => {
+                    try {
+                        const botNumber = sock.decodeJid(sock.user.id);
+                        await sock.sendMessage(botNumber, { 
+                            text: `✅ *LIZA-AI V2 കണക്ട് ആയി!* \n\n*Status:* Stable\n*Plugins:* ${global.plugins.size}` 
+                        });
+                    } catch (e) {
+                        console.log(chalk.red('⚠️ Startup message skip: ' + e.message));
+                    }
+                }, 15000); // 15 സെക്കൻഡ് ഡിലേ നൽകുന്നു
             }
             
             if (connection === 'close') {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 if (reason !== DisconnectReason.loggedOut) {
-                    console.log(chalk.red(`❌ Connection Closed (${reason}). Reconnecting...`));
-                    startLizaBot();
+                    console.log(chalk.red(`❌ Connection Closed (${reason}). Retrying in 5s...`));
+                    setTimeout(() => startLizaBot(), 5000);
                 } else {
                     console.log(chalk.red('❌ Session Logged Out. Please update SESSION_ID.'));
                 }
