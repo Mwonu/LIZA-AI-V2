@@ -33,9 +33,13 @@ function loadPlugins() {
     const pluginFiles = fs.readdirSync(pluginFolder).filter(file => file.endsWith('.js'));
     
     for (const file of pluginFiles) {
+        const fullPath = path.join(pluginFolder, file);
         try {
-            const plugin = require(path.join(pluginFolder, file));
-            // കമാൻഡ് ലിസ്റ്റ് സൂക്ഷിക്കാൻ
+            // പഴയ കാഷെ കളയുന്നു (Hot Reloading)
+            if (require.cache[require.resolve(fullPath)]) {
+                delete require.cache[require.resolve(fullPath)];
+            }
+            const plugin = require(fullPath);
             if (plugin.command) {
                 global.plugins.set(file, plugin);
             }
@@ -65,7 +69,6 @@ store.readFromFile('./baileys_store.json')
 
 const config = require('./config') 
 
-// 10 സെക്കൻഡ് കൂടുമ്പോൾ ഡാറ്റ സേവ് ചെയ്യും
 setInterval(() => {
     try {
         store.writeToFile('./baileys_store.json')
@@ -78,7 +81,6 @@ async function startLizaBot() {
     try {
         if (!fs.existsSync('./session')) fs.mkdirSync('./session');
         
-        // --- 🔑 SESSION ID HANDLING ---
         if (!fs.existsSync('./session/creds.json') && process.env.SESSION_ID) {
             try {
                 let sessionID = process.env.SESSION_ID;
@@ -155,7 +157,6 @@ async function startLizaBot() {
                     return;
                 }
 
-                // മെസ്സേജുകൾ ഹാൻഡിൽ ചെയ്യാൻ main.js-ലേക്ക് അയക്കുന്നു
                 await handleMessages(sock, chatUpdate)
             } catch (err) {
                 console.error('Upsert Error:', err)
@@ -177,6 +178,9 @@ async function startLizaBot() {
         }
 
         sock.public = config.MODE === 'public';
+        
+        // പ്ലഗിൻ ലിസ്റ്റ് എക്സ്‌പോർട്ട് ചെയ്യുന്നു
+        sock.plugins = global.plugins;
 
         return sock
     } catch (error) {
@@ -185,5 +189,8 @@ async function startLizaBot() {
         startLizaBot()
     }
 }
+
+// പ്ലഗിനുകൾ എക്സ്‌പോർട്ട് ചെയ്യാനായി global ഒബ്‌ജക്റ്റ് ഉപയോഗിക്കുന്നു
+module.exports = { startLizaBot, loadPlugins };
 
 startLizaBot()
