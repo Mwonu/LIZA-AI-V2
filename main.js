@@ -33,9 +33,8 @@ async function handleMessages(sock, chatUpdate) {
         const isOwner = m.sender.split('@')[0] === config.OWNER_NUMBER || m.key.fromMe;
 
         // --- 📢 SAFE STARTUP NOTIFICATION ---
-        // ആദ്യത്തെ മെസ്സേജ് വരുമ്പോൾ ബോട്ട് ആക്ടീവ് ആണെന്ന് ഓണറെ അറിയിക്കുന്നു
-        if (!hasNotified && isOwner) {
-            await sock.sendMessage(m.chat, { text: "🤖 *LIZA-AI V2 ആക്ടീവ് ആണ്!* \nകമാൻഡുകൾ ഉപയോഗിക്കാൻ തയ്യാറാണ്." }, { quoted: m });
+        if (!hasNotified && isOwner && isCommand) {
+            await sock.sendMessage(m.chat, { text: "🤖 *LIZA-AI V2 ആക്ടീവ് ആണ്!* \nകമാൻഡുകൾ പ്രോസസ്സ് ചെയ്യാൻ തയ്യാറാണ്." }, { quoted: m });
             hasNotified = true;
         }
 
@@ -74,15 +73,26 @@ async function handleMessages(sock, chatUpdate) {
             return;
         }
 
-        // --- ⚙️ PLUGIN EXECUTION ---
+        // --- ⚙️ PLUGIN EXECUTION (എഡിറ്റ്‌ ചെയ്ത ഭാഗം) ---
         if (isCommand) {
-            let executed = false;
-            global.plugins.forEach((plugin) => {
-                if (plugin.command && plugin.command.includes(command)) {
-                    executed = true;
-                    plugin.execute(sock, m, { args, command, isOwner });
+            let pluginFound = false;
+            for (let [file, plugin] of global.plugins) {
+                // പ്ലഗിൻ സ്ട്രിംഗ് ആണോ അറേ ആണോ എന്ന് നോക്കുന്നു
+                const isMatch = Array.isArray(plugin.command) 
+                    ? plugin.command.includes(command) 
+                    : plugin.command === command;
+
+                if (isMatch) {
+                    pluginFound = true;
+                    try {
+                        await plugin.execute(sock, m, { args, command, isOwner, prefix });
+                    } catch (err) {
+                        console.error(chalk.red(`❌ Error in plugin ${file}:`), err);
+                        m.reply(`⚠️ പ്ലഗിൻ എറർ: ${err.message}`);
+                    }
+                    break; // കമാൻഡ് ലഭിച്ചാൽ ലൂപ്പ് നിർത്തുന്നു
                 }
-            });
+            }
         }
 
     } catch (err) {
