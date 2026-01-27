@@ -7,8 +7,11 @@ const config = require('./config');
 const { smsg } = require('./lib/myfunc');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios'); // ജിസ്റ്റ് ഡൗൺലോഡ് ചെയ്യാൻ axios ആവശ്യമാണ്
+const axios = require('axios');
 const chalk = require('chalk');
+
+// ബോട്ട് സ്റ്റാർട്ട് ആകുമ്പോൾ ഒരു തവണ മാത്രം നോട്ടിഫിക്കേഷൻ അയക്കാൻ
+let hasNotified = false;
 
 async function handleMessages(sock, chatUpdate) {
     try {
@@ -29,6 +32,13 @@ async function handleMessages(sock, chatUpdate) {
 
         const isOwner = m.sender.split('@')[0] === config.OWNER_NUMBER || m.key.fromMe;
 
+        // --- 📢 SAFE STARTUP NOTIFICATION ---
+        // ആദ്യത്തെ മെസ്സേജ് വരുമ്പോൾ ബോട്ട് ആക്ടീവ് ആണെന്ന് ഓണറെ അറിയിക്കുന്നു
+        if (!hasNotified && isOwner) {
+            await sock.sendMessage(m.chat, { text: "🤖 *LIZA-AI V2 ആക്ടീവ് ആണ്!* \nകമാൻഡുകൾ ഉപയോഗിക്കാൻ തയ്യാറാണ്." }, { quoted: m });
+            hasNotified = true;
+        }
+
         // 🔒 Private Mode
         if (config.MODE === 'private' && !isOwner) return;
 
@@ -38,40 +48,42 @@ async function handleMessages(sock, chatUpdate) {
             if (!gistUrl) return m.reply(`*ജിസ്റ്റ് ലിങ്ക് നൽകൂ!* \nഉദാഹരണം: ${prefix}install https://gist.github.com/user/id`);
 
             try {
-                // ജിസ്റ്റ് ലിങ്കിൽ നിന്ന് റോ (raw) ഡാറ്റ എടുക്കുന്നു
                 const rawUrl = gistUrl.includes('/raw') ? gistUrl : gistUrl + '/raw';
                 const response = await axios.get(rawUrl);
                 
-                // പ്ലഗിൻ പേര് കണ്ടെത്തുന്നു (ജിസ്റ്റ് ഫയൽ നെയിം അല്ലെങ്കിൽ റാണ്ടം നെയിം)
                 const fileName = `gist_${Date.now()}.js`;
                 const filePath = path.join(__dirname, 'plugins', fileName);
 
+                if (!fs.existsSync(path.join(__dirname, 'plugins'))) {
+                    fs.mkdirSync(path.join(__dirname, 'plugins'));
+                }
+
                 fs.writeFileSync(filePath, response.data);
                 
-                // പ്ലഗിൻ റീലോഡ് ചെയ്യുക (ഇൻസ്റ്റാൾ ചെയ്ത ഉടൻ വർക്ക് ആകാൻ)
+                // പ്ലഗിൻ ലോഡ് ചെയ്യുന്നു
                 const newPlugin = require(filePath);
                 if (newPlugin.command) {
                     global.plugins.set(fileName, newPlugin);
                     m.reply(`✅ *പ്ലഗിൻ ഇൻസ്റ്റാൾ ആയി!* \nകമാൻഡ്: ${newPlugin.command}`);
                 } else {
-                    m.reply('⚠️ പ്ലഗിൻ സേവ് ആയി, പക്ഷേ കമാൻഡ് ഫോർമാറ്റ് തെറ്റാണ്.');
+                    m.reply('⚠️ പ്ലഗിൻ സേവ് ആയി, പക്ഷേ ഫോർമാറ്റ് തെറ്റാണ്.');
                 }
             } catch (e) {
-                console.error(e);
-                m.reply('❌ ഇൻസ്റ്റാൾ ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു. ലിങ്ക് പരിശോധിക്കുക.');
+                m.reply('❌ ഇൻസ്റ്റാൾ പരാജയപ്പെട്ടു: ' + e.message);
             }
             return;
         }
 
         // --- ⚙️ PLUGIN EXECUTION ---
-        // index.js-ൽ സെറ്റ് ചെയ്ത global.plugins ഉപയോഗിക്കുന്നു
-        let executed = false;
-        global.plugins.forEach((plugin, file) => {
-            if (plugin.command && plugin.command.includes(command)) {
-                executed = true;
-                plugin.execute(sock, m, { args, command, isOwner });
-            }
-        });
+        if (isCommand) {
+            let executed = false;
+            global.plugins.forEach((plugin) => {
+                if (plugin.command && plugin.command.includes(command)) {
+                    executed = true;
+                    plugin.execute(sock, m, { args, command, isOwner });
+                }
+            });
+        }
 
     } catch (err) {
         console.error('Error in handleMessages:', err);
@@ -83,7 +95,7 @@ async function handleGroupParticipantUpdate(sock, anu) {
 }
 
 async function handleStatus(sock, chatUpdate) {
-    // ഓട്ടോ സ്റ്റാറ്റസ് വ്യൂ ഇവിടെ വേണമെങ്കിൽ ആഡ് ചെയ്യാം
+    // ഓട്ടോ സ്റ്റാറ്റസ് വ്യൂ വേണമെങ്കിൽ ഇവിടെ ചേർക്കാം
 }
 
 module.exports = { 
