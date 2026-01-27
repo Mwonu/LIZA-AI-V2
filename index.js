@@ -35,7 +35,6 @@ function loadPlugins() {
     for (const file of pluginFiles) {
         const fullPath = path.join(pluginFolder, file);
         try {
-            // പഴയ കാഷെ കളയുന്നു (Hot Reloading)
             if (require.cache[require.resolve(fullPath)]) {
                 delete require.cache[require.resolve(fullPath)];
             }
@@ -50,12 +49,11 @@ function loadPlugins() {
     console.log(chalk.green(`✅ Successfully loaded ${global.plugins.size} plugins!`));
 }
 
-// പ്ലഗിനുകൾ ലോഡ് ചെയ്യുന്നു
 loadPlugins();
 
 // --- 🌐 RAILWAY SERVER SETUP ---
 const app = express();
-const port = process.env.PORT || 3000; 
+const port = process.env.PORT || 8080; // ലോഗ്സിൽ 8080 ആയതുകൊണ്ട് അത് ഡിഫോൾട്ട് ആക്കി
 
 app.get('/', (req, res) => { res.send('LIZA-AI V2 is Running Successfully!'); });
 app.listen(port, "0.0.0.0", () => { 
@@ -124,23 +122,30 @@ async function startLizaBot() {
             const { connection, lastDisconnect } = s
             if (connection === 'connecting') console.log(chalk.yellow('🔄 LIZA-AI is connecting to WhatsApp...'))
             
-            if (connection == "open") {
+            if (connection === "open") {
                 console.log(chalk.blue.bold(`\n---------------------------------`));
                 console.log(chalk.white(`🤖 LIZA-AI V2 is Online!`));
                 console.log(chalk.white(`👨‍💻 Dev: (hank!nd3 p4d4y41!)`));
                 console.log(chalk.blue.bold(`---------------------------------\n`));
                 
-                const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                await sock.sendMessage(botNumber, { 
-                    text: `🤖 *LIZA-AI V2 IS LIVE!*\n\n*Status:* Connected Successfully\n*Mode:* ${config.MODE}\n*Developer:* (hank!nd3 p4d4y41!)` 
-                });
+                // കണക്ഷൻ സ്റ്റേബിൾ ആകാൻ 3 സെക്കൻഡ് വെയിറ്റ് ചെയ്യുന്നു
+                await delay(3000);
+                
+                try {
+                    const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                    await sock.sendMessage(botNumber, { 
+                        text: `🤖 *LIZA-AI V2 IS LIVE!*\n\n*Status:* Connected Successfully\n*Mode:* ${config.MODE}\n*Developer:* (hank!nd3 p4d4y41!)` 
+                    });
+                } catch (e) {
+                    console.log(chalk.red('⚠️ Startup message send failed: ' + e.message));
+                }
             }
             
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
-                if (shouldReconnect) {
-                    console.log(chalk.red('❌ Lost connection. Reconnecting...'))
-                    startLizaBot()
+                let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+                if (reason !== DisconnectReason.loggedOut) {
+                    console.log(chalk.red(`❌ Connection Closed (${reason}). Reconnecting...`));
+                    startLizaBot();
                 } else {
                     console.log(chalk.red('❌ Session Logged Out. Please update SESSION_ID.'));
                 }
@@ -178,8 +183,6 @@ async function startLizaBot() {
         }
 
         sock.public = config.MODE === 'public';
-        
-        // പ്ലഗിൻ ലിസ്റ്റ് എക്സ്‌പോർട്ട് ചെയ്യുന്നു
         sock.plugins = global.plugins;
 
         return sock
@@ -190,7 +193,5 @@ async function startLizaBot() {
     }
 }
 
-// പ്ലഗിനുകൾ എക്സ്‌പോർട്ട് ചെയ്യാനായി global ഒബ്‌ജക്റ്റ് ഉപയോഗിക്കുന്നു
 module.exports = { startLizaBot, loadPlugins };
-
 startLizaBot()
