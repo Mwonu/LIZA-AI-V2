@@ -18,6 +18,10 @@ async function handleMessages(sock, chatUpdate) {
         let mek = chatUpdate.messages[0];
         if (!mek.message) return;
         
+        // --- 🐞 DEBUG LOGS ---
+        // ലോഗ്സിൽ മെസ്സേജ് വരുന്നത് കാണാൻ ഇത് സഹായിക്കും
+        console.log(chalk.cyan('📩 New Message Received'));
+
         // Ephemeral മെസ്സേജ് കൈകാര്യം ചെയ്യുന്നു
         mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
         
@@ -25,12 +29,16 @@ async function handleMessages(sock, chatUpdate) {
         const msgBody = m.body || "";
         const prefix = config.PREFIX;
         
-        // 🔍 കമാൻഡ് ചെക്കിംഗ്
+        // --- 🔍 കമാൻഡ് ചെക്കിംഗ് ---
         const isCommand = msgBody.startsWith(prefix);
         const command = isCommand ? msgBody.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase() : "";
         const args = msgBody.trim().split(/\s+/).slice(1);
 
         const isOwner = m.sender.split('@')[0] === config.OWNER_NUMBER || m.key.fromMe;
+
+        if (isCommand) {
+            console.log(chalk.green(`🚀 Command Detected: ${command} | From: ${m.sender}`));
+        }
 
         // --- 📢 SAFE STARTUP NOTIFICATION ---
         if (!hasNotified && isOwner && isCommand) {
@@ -73,7 +81,7 @@ async function handleMessages(sock, chatUpdate) {
             return;
         }
 
-        // --- ⚙️ PLUGIN EXECUTION (എഡിറ്റ്‌ ചെയ്ത ഭാഗം) ---
+        // --- ⚙️ PLUGIN EXECUTION ---
         if (isCommand) {
             let pluginFound = false;
             for (let [file, plugin] of global.plugins) {
@@ -85,14 +93,16 @@ async function handleMessages(sock, chatUpdate) {
                 if (isMatch) {
                     pluginFound = true;
                     try {
+                        console.log(chalk.blue(`⚙️ Executing Plugin: ${file}`));
                         await plugin.execute(sock, m, { args, command, isOwner, prefix });
                     } catch (err) {
                         console.error(chalk.red(`❌ Error in plugin ${file}:`), err);
                         m.reply(`⚠️ പ്ലഗിൻ എറർ: ${err.message}`);
                     }
-                    break; // കമാൻഡ് ലഭിച്ചാൽ ലൂപ്പ് നിർത്തുന്നു
+                    break;
                 }
             }
+            if (!pluginFound) console.log(chalk.yellow(`❓ Command "${command}" not found in plugins.`));
         }
 
     } catch (err) {
@@ -105,7 +115,7 @@ async function handleGroupParticipantUpdate(sock, anu) {
 }
 
 async function handleStatus(sock, chatUpdate) {
-    // ഓട്ടോ സ്റ്റാറ്റസ് വ്യൂ വേണമെങ്കിൽ ഇവിടെ ചേർക്കാം
+    // ഓട്ടോ സ്റ്റാറ്റസ് വ്യൂ ഇവിടെ ചേർക്കാം
 }
 
 module.exports = { 
