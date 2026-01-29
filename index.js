@@ -1,7 +1,7 @@
 /**
  * LIZA-AI V2 - Core Engine (Plugin Enabled)
  * Optimized for Railway Deployment
- * Developer: (hank!nd3 p4d4y41!)
+ * Developer: chank!nd3 p4d4y41!
  */
 
 require('./config') 
@@ -24,7 +24,7 @@ const NodeCache = require("node-cache")
 const pino = require("pino")
 const express = require('express');
 
-// --- 📂 PLUGIN LOADER (hank!nd3 p4d4y41!) ---
+// --- 📂 PLUGIN LOADER ---
 global.plugins = new Map();
 const pluginFolder = path.join(__dirname, 'plugins');
 
@@ -55,7 +55,7 @@ loadPlugins();
 const app = express();
 const port = process.env.PORT || 8080; 
 
-app.get('/', (req, res) => { res.send('LIZA-AI V2 is Running Successfully!'); });
+app.get('/', (req, res) => { res.send('LIZA-AI V2 is Online!'); });
 app.listen(port, "0.0.0.0", () => { 
     console.log(chalk.green(`🌐 Server active on port ${port}`)); 
 });
@@ -88,7 +88,7 @@ async function startLizaBot() {
                 
                 const buffer = Buffer.from(sessionData, 'base64');
                 fs.writeFileSync('./session/creds.json', buffer.toString());
-                console.log(chalk.green('✅ Session ID successfully converted and loaded!'));
+                console.log(chalk.green('✅ Session ID Loaded!'));
             } catch (e) {
                 console.log(chalk.red('❌ Session ID Error: ' + e.message));
             }
@@ -102,17 +102,17 @@ async function startLizaBot() {
             version,
             logger: pino({ level: 'silent' }),
             printQRInTerminal: !process.env.SESSION_ID,
-            browser: ["LIZA-AI V2", "Safari", "3.0.0"],
+            browser: ["LIZA-AI V2", "Chrome", "110.0.5481.178"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
             },
-            markOnlineOnConnect: true,
-            syncFullHistory: false, // ഹിസ്റ്ററി സിങ്കിംഗ് കുറയ്ക്കുന്നു
+            markOnlineOnConnect: false, // സ്റ്റെബിലിറ്റിക്ക് വേണ്ടി ഇത് false ആക്കി
+            syncFullHistory: false, 
+            shouldSyncHistoryMessage: () => false, // ഹിസ്റ്ററി സിങ്ക് പൂർണ്ണമായും ബ്ലോക്ക് ചെയ്തു
             msgRetryCounterCache,
             connectTimeoutMs: 60000,
-            defaultQueryTimeoutMs: 0,
-            keepAliveIntervalMs: 10000,
+            keepAliveIntervalMs: 30000,
         })
 
         sock.ev.on('creds.update', saveCreds)
@@ -128,26 +128,25 @@ async function startLizaBot() {
                 console.log(chalk.white(`👨‍💻 Dev: (hank!nd3 p4d4y41!)`));
                 console.log(chalk.blue.bold(`---------------------------------\n`));
                 
-                // --- സുരക്ഷിതമായ സ്റ്റാർട്ടപ്പ് നോട്ടിഫിക്കേഷൻ ---
+                // 20 സെക്കൻഡ് കഴിഞ്ഞ് മാത്രം നോട്ടിഫിക്കേഷൻ
                 setTimeout(async () => {
                     try {
                         const botNumber = sock.decodeJid(sock.user.id);
                         await sock.sendMessage(botNumber, { 
-                            text: `✅ *LIZA-AI V2 കണക്ട് ആയി!* \n\n*Status:* Stable\n*Plugins:* ${global.plugins.size}` 
+                            text: `✅ *LIZA-AI V2 Connected!* \n\n*Developer:* (hank!nd3 p4d4y41!)` 
                         });
-                    } catch (e) {
-                        console.log(chalk.red('⚠️ Startup message skip: ' + e.message));
-                    }
-                }, 15000); // 15 സെക്കൻഡ് ഡിലേ നൽകുന്നു
+                    } catch (e) {}
+                }, 20000);
             }
             
             if (connection === 'close') {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 if (reason !== DisconnectReason.loggedOut) {
-                    console.log(chalk.red(`❌ Connection Closed (${reason}). Retrying in 5s...`));
+                    // പെട്ടെന്ന് റീസ്റ്റാർട്ട് ചെയ്യാതെ 5 സെക്കൻഡ് ഗ്യാപ്പ് നൽകുന്നു
+                    console.log(chalk.red(`❌ Connection Lost (${reason}). Reconnecting in 5s...`));
                     setTimeout(() => startLizaBot(), 5000);
                 } else {
-                    console.log(chalk.red('❌ Session Logged Out. Please update SESSION_ID.'));
+                    console.log(chalk.red('❌ Logged Out. Update SESSION_ID.'));
                 }
             }
         })
@@ -156,12 +155,10 @@ async function startLizaBot() {
             try {
                 const mek = chatUpdate.messages[0]
                 if (!mek.message) return
-                
                 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                     if (typeof handleStatus === 'function') await handleStatus(sock, chatUpdate);
                     return;
                 }
-
                 await handleMessages(sock, chatUpdate)
             } catch (err) {
                 console.error('Upsert Error:', err)
@@ -187,11 +184,10 @@ async function startLizaBot() {
 
         return sock
     } catch (error) {
-        console.error('Connection Error:', error)
+        console.error('Error:', error)
         await delay(5000)
         startLizaBot()
     }
 }
 
-module.exports = { startLizaBot, loadPlugins };
 startLizaBot()
