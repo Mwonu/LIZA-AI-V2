@@ -16,12 +16,20 @@ async function handleMessages(sock, chatUpdate) {
     try {
         let mek = chatUpdate.messages[0];
         if (!mek || !mek.message) return;
+
+        // --- 🕒 TIMEOUT LOGIC ---
+        // പഴയ മെസ്സേജുകൾ (Offline Messages) സ്പാം ആകുന്നത് തടയാൻ
+        const messageTimestamp = mek.messageTimestamp;
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        if (currentTimestamp - messageTimestamp > 15) { // 15 സെക്കൻഡിൽ കൂടുതൽ പഴക്കമുണ്ടെങ്കിൽ അവഗണിക്കും
+            return;
+        }
         
         // Ephemeral handling
         mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
         
         const m = smsg(sock, mek);
-        if (!m) return; // സന്ദേശം ശരിയായി ലഭിച്ചില്ലെങ്കിൽ ഒഴിവാക്കുന്നു
+        if (!m) return; 
 
         const msgBody = (m.body || "").trim();
         const prefix = config.PREFIX;
@@ -39,7 +47,7 @@ async function handleMessages(sock, chatUpdate) {
         const args = msgBody.split(/\s+/).slice(1);
         const isCommand = command !== ""; 
 
-        // Owner check (LID അപ്ഡേറ്റ് അടക്കം സുരക്ഷിതമാക്കിയത്)
+        // Owner check
         const senderNumber = m.sender ? m.sender.split('@')[0] : "";
         const isOwner = senderNumber === config.OWNER_NUMBER || m.key.fromMe;
 
@@ -71,7 +79,6 @@ async function handleMessages(sock, chatUpdate) {
                 const filePath = path.join(__dirname, 'plugins', fileName);
                 fs.writeFileSync(filePath, response.data);
                 
-                // പ്ലഗിൻ ലോഡ് ചെയ്യുന്നു
                 const newPlugin = require(filePath);
                 if (newPlugin.command) {
                     global.plugins.set(fileName, newPlugin);
