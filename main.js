@@ -1,6 +1,6 @@
 /**
  * LIZA-AI V2 - Message Handler (Gist Support)
- * Developer: (hank!nd3 p4d4y41!)
+ * Developer: chank!nd3 p4d4y41!
  */
 
 const config = require('./config');
@@ -18,10 +18,6 @@ async function handleMessages(sock, chatUpdate) {
         let mek = chatUpdate.messages[0];
         if (!mek.message) return;
         
-        // --- 🐞 DEBUG LOGS ---
-        // ലോഗ്സിൽ മെസ്സേജ് വരുന്നത് കാണാൻ ഇത് സഹായിക്കും
-        console.log(chalk.cyan('📩 New Message Received'));
-
         // Ephemeral മെസ്സേജ് കൈകാര്യം ചെയ്യുന്നു
         mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
         
@@ -34,20 +30,26 @@ async function handleMessages(sock, chatUpdate) {
         const command = isCommand ? msgBody.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase() : "";
         const args = msgBody.trim().split(/\s+/).slice(1);
 
+        // ഉടമസ്ഥനാണോ എന്ന് പരിശോധിക്കുന്നു (Number matching fixed)
         const isOwner = m.sender.split('@')[0] === config.OWNER_NUMBER || m.key.fromMe;
 
+        // --- 🐞 DEBUG LOGS ---
+        console.log(chalk.cyan(`📩 New Message: "${msgBody}" | From: ${m.sender}`));
         if (isCommand) {
-            console.log(chalk.green(`🚀 Command Detected: ${command} | From: ${m.sender}`));
+            console.log(chalk.green(`🚀 Command Detected: ${command}`));
         }
 
         // --- 📢 SAFE STARTUP NOTIFICATION ---
         if (!hasNotified && isOwner && isCommand) {
-            await sock.sendMessage(m.chat, { text: "🤖 *LIZA-AI V2 ആക്ടീവ് ആണ്!* \nകമാൻഡുകൾ പ്രോസസ്സ് ചെയ്യാൻ തയ്യാറാണ്." }, { quoted: m });
+            await sock.sendMessage(m.chat, { text: "🤖 *LIZA-AI V2 ആക്ടീവ് ആണ്!* \n\n*Dev:* chank!nd3 p4d4y41!\n*Mode:* " + config.MODE }, { quoted: m });
             hasNotified = true;
         }
 
-        // 🔒 Private Mode
-        if (config.MODE === 'private' && !isOwner) return;
+        // 🔒 Private Mode Logic (Modified for better control)
+        if (config.MODE === 'private' && !isOwner) {
+            if (isCommand) console.log(chalk.red(`🚫 Command blocked: Private Mode is ON.`));
+            return;
+        }
 
         // --- 📥 GIST INSTALLER COMMAND ---
         if (command === 'install' && isOwner) {
@@ -58,6 +60,7 @@ async function handleMessages(sock, chatUpdate) {
                 const rawUrl = gistUrl.includes('/raw') ? gistUrl : gistUrl + '/raw';
                 const response = await axios.get(rawUrl);
                 
+                // പ്ലഗിൻ പേര് ജിസ്റ്റിൽ നിന്ന് കണ്ടെത്താൻ ശ്രമിക്കുന്നു അല്ലെങ്കിൽ ടൈംസ്റ്റാമ്പ് ഉപയോഗിക്കുന്നു
                 const fileName = `gist_${Date.now()}.js`;
                 const filePath = path.join(__dirname, 'plugins', fileName);
 
@@ -68,14 +71,18 @@ async function handleMessages(sock, chatUpdate) {
                 fs.writeFileSync(filePath, response.data);
                 
                 // പ്ലഗിൻ ലോഡ് ചെയ്യുന്നു
+                delete require.cache[require.resolve(filePath)]; // പഴയ കാഷെ കളയുന്നു
                 const newPlugin = require(filePath);
+                
                 if (newPlugin.command) {
                     global.plugins.set(fileName, newPlugin);
-                    m.reply(`✅ *പ്ലഗിൻ ഇൻസ്റ്റാൾ ആയി!* \nകമാൻഡ്: ${newPlugin.command}`);
+                    m.reply(`✅ *പ്ലഗിൻ ഇൻസ്റ്റാൾ ആയി!* \n\n*കമാൻഡ്:* ${newPlugin.command}\n*വിവരണം:* ${newPlugin.description || 'ലഭ്യമല്ല'}`);
                 } else {
-                    m.reply('⚠️ പ്ലഗിൻ സേവ് ആയി, പക്ഷേ ഫോർമാറ്റ് തെറ്റാണ്.');
+                    fs.unlinkSync(filePath); // തെറ്റായ ഫയൽ ആണെങ്കിൽ ഡിലീറ്റ് ചെയ്യുന്നു
+                    m.reply('⚠️ പ്ലഗിൻ ഫോർമാറ്റ് തെറ്റാണ്. `module.exports` പരിശോധിക്കുക.');
                 }
             } catch (e) {
+                console.error(e);
                 m.reply('❌ ഇൻസ്റ്റാൾ പരാജയപ്പെട്ടു: ' + e.message);
             }
             return;
@@ -85,7 +92,6 @@ async function handleMessages(sock, chatUpdate) {
         if (isCommand) {
             let pluginFound = false;
             for (let [file, plugin] of global.plugins) {
-                // പ്ലഗിൻ സ്ട്രിംഗ് ആണോ അറേ ആണോ എന്ന് നോക്കുന്നു
                 const isMatch = Array.isArray(plugin.command) 
                     ? plugin.command.includes(command) 
                     : plugin.command === command;
@@ -93,16 +99,18 @@ async function handleMessages(sock, chatUpdate) {
                 if (isMatch) {
                     pluginFound = true;
                     try {
-                        console.log(chalk.blue(`⚙️ Executing Plugin: ${file}`));
+                        console.log(chalk.blue(`⚙️ Executing: ${file}`));
                         await plugin.execute(sock, m, { args, command, isOwner, prefix });
                     } catch (err) {
-                        console.error(chalk.red(`❌ Error in plugin ${file}:`), err);
+                        console.error(chalk.red(`❌ Error in ${file}:`), err);
                         m.reply(`⚠️ പ്ലഗിൻ എറർ: ${err.message}`);
                     }
                     break;
                 }
             }
-            if (!pluginFound) console.log(chalk.yellow(`❓ Command "${command}" not found in plugins.`));
+            if (!pluginFound) {
+                console.log(chalk.yellow(`❓ Command "${command}" not found.`));
+            }
         }
 
     } catch (err) {
