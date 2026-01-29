@@ -4,10 +4,17 @@
  */
 
 module.exports = {
-    command: ['ping', 'p'], // ഇവിടെ 'command' എന്ന് തന്നെ വേണം
+    command: ['ping', 'p'],
     category: 'main',
     description: 'ബോട്ടിന്റെ സ്പീഡ് അറിയാൻ',
     async execute(sock, m, { args }) {
-        await sock.sendMessage(m.chat, { text: 'Pong! 🏓' }, { quoted: m });
+        try {
+            // quoted മെസ്സേജ് ഒഴിവാക്കി നേരിട്ട് മെസ്സേജ് അയക്കുന്നു (Stability-ക്ക് വേണ്ടി)
+            await sock.sendMessage(m.chat, { 
+                text: 'Pong! 🏓\n*LIZA-AI V2 Online*' 
+            });
+        } catch (e) {
+            console.error("Ping Plugin Error: ", e);
+        }
     }
 }
