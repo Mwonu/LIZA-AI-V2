@@ -1,7 +1,7 @@
 /**
  * LIZA-AI V2 - Core Engine (Plugin Enabled)
  * Optimized for Railway Deployment
- * Developer: chank!nd3 p4d4y41!
+ * Developer: (hank!nd3 p4d4y41!
  */
 
 require('./config') 
@@ -71,14 +71,15 @@ setInterval(() => {
     try {
         store.writeToFile('./baileys_store.json')
     } catch (e) {
-        console.log("Store write error: ", e.message)
+        // Console spam ഒഴിവാക്കാൻ ലോഗ് സൈലന്റ് ആക്കി
     }
-}, config.storeWriteInterval || 10000)
+}, 30000) // 30 സെക്കൻഡിലൊരിക്കൽ മാത്രം സ്റ്റോർ അപ്ഡേറ്റ് ചെയ്യുന്നു
 
 async function startLizaBot() {
     try {
         if (!fs.existsSync('./session')) fs.mkdirSync('./session');
         
+        // --- 🔑 SESSION INITIALIZATION ---
         if (!fs.existsSync('./session/creds.json') && process.env.SESSION_ID) {
             try {
                 let sessionID = process.env.SESSION_ID;
@@ -88,9 +89,9 @@ async function startLizaBot() {
                 
                 const buffer = Buffer.from(sessionData, 'base64');
                 fs.writeFileSync('./session/creds.json', buffer.toString());
-                console.log(chalk.green('✅ Session ID Loaded!'));
+                console.log(chalk.green('✅ Session ID Successfully Extracted!'));
             } catch (e) {
-                console.log(chalk.red('❌ Session ID Error: ' + e.message));
+                console.log(chalk.red('❌ Session ID Decoding Error: ' + e.message));
             }
         }
 
@@ -102,58 +103,46 @@ async function startLizaBot() {
             version,
             logger: pino({ level: 'silent' }),
             printQRInTerminal: !process.env.SESSION_ID,
-            // Desktop browser ഉപയോഗിക്കുന്നത് കണക്ഷൻ സ്ഥിരത കൂട്ടാൻ സഹായിക്കും
-            browser: ["LIZA-AI V2", "Desktop", "10.0.0"],
+            // കണക്ഷൻ സ്റ്റെബിലിറ്റിക്കായി ഡെസ്ക്ടോപ്പ് ബ്രൗസർ സെറ്റിംഗ്സ്
+            browser: ["LIZA-AI V2", "Chrome", "20.0.04"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
             },
-            markOnlineOnConnect: false, 
-            syncFullHistory: false, 
-            fireInitQueries: false, // അധികമുള്ള ക്വറികൾ ഒഴിവാക്കുന്നു
-            shouldSyncHistoryMessage: () => false, 
+            markOnlineOnConnect: true, 
+            generateHighQualityLinkPreview: true,
             msgRetryCounterCache,
-            connectTimeoutMs: 60000,
-            defaultQueryTimeoutMs: 0,
-            keepAliveIntervalMs: 10000,
-            generateHighQualityLinkPreview: false,
+            defaultQueryTimeoutMs: undefined, // അനന്തമായി വെയിറ്റ് ചെയ്യുന്നത് ഒഴിവാക്കാൻ
         })
 
         sock.ev.on('creds.update', saveCreds)
         store.bind(sock.ev)
 
+        // --- 📡 CONNECTION MONITORING ---
         sock.ev.on('connection.update', async (s) => {
             const { connection, lastDisconnect } = s
-            if (connection === 'connecting') console.log(chalk.yellow('🔄 LIZA-AI is connecting...'))
+            if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting to WhatsApp...'))
             
             if (connection === "open") {
                 console.log(chalk.blue.bold(`\n---------------------------------`));
-                console.log(chalk.white(`🤖 LIZA-AI V2 is Online!`));
-                console.log(chalk.white(`👨‍💻 Dev: chank!nd3 p4d4y41!`)); // പേര് അപ്ഡേറ്റ് ചെയ്തു
+                console.log(chalk.white(`🤖 LIZA-AI V2 Status: ONLINE`));
+                console.log(chalk.white(`👨‍💻 Developer: (hank!nd3 p4d4y41!`));
                 console.log(chalk.blue.bold(`---------------------------------\n`));
-                
-                setTimeout(async () => {
-                    try {
-                        const botNumber = sock.decodeJid(sock.user.id);
-                        await sock.sendMessage(botNumber, { 
-                            text: `✅ *LIZA-AI V2 കണക്ട് ആയി!* \n\n*Dev:* chank!nd3 p4d4y41!\n*Plugins:* ${global.plugins.size}` 
-                        });
-                    } catch (e) {}
-                }, 15000);
             }
             
             if (connection === 'close') {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-                
-                // 440 (Stream Error) ഉണ്ടെങ്കിൽ 10 സെക്കൻഡ് ഗ്യാപ്പ് നൽകി റീസ്റ്റാർട്ട് ചെയ്യുന്നു
+                console.log(chalk.red(`❌ Connection Closed: ${reason}`));
+
                 if (reason === DisconnectReason.restartRequired || reason === 440) {
-                    console.log(chalk.red(`⚠️ Connection Issue (${reason}). Reconnecting in 10s...`));
-                    setTimeout(() => startLizaBot(), 10000);
-                } else if (reason !== DisconnectReason.loggedOut) {
-                    console.log(chalk.red(`❌ Connection Closed (${reason}). Retrying in 5s...`));
-                    setTimeout(() => startLizaBot(), 5000);
+                    console.log(chalk.yellow('🔄 Restarting to fix stream error...'));
+                    startLizaBot();
+                } else if (reason === DisconnectReason.loggedOut) {
+                    console.log(chalk.bgRed('‼️ WhatsApp Account Logged Out! Delete session folder and update SESSION_ID.'));
+                    process.exit(0);
                 } else {
-                    console.log(chalk.red('❌ Logged Out. Update SESSION_ID.'));
+                    // മറ്റു കാരണങ്ങൾ ഉണ്ടെങ്കിൽ 5 സെക്കൻഡിന് ശേഷം വീണ്ടും ശ്രമിക്കും
+                    setTimeout(() => startLizaBot(), 5000);
                 }
             }
         })
@@ -161,20 +150,17 @@ async function startLizaBot() {
         sock.ev.on('messages.upsert', async chatUpdate => {
             try {
                 const mek = chatUpdate.messages[0]
-                if (!mek.message) return
+                if (!mek || !mek.message) return
+                
+                // സ്റ്റാറ്റസ് ഓട്ടോ വ്യൂ അല്ലെങ്കിൽ ഇഗ്നോർ ചെയ്യാൻ
                 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                     if (typeof handleStatus === 'function') await handleStatus(sock, chatUpdate);
                     return;
                 }
+
                 await handleMessages(sock, chatUpdate)
             } catch (err) {
-                console.error('Upsert Error:', err)
-            }
-        })
-
-        sock.ev.on('group-participants.update', async (anu) => {
-            if (typeof handleGroupParticipantUpdate === 'function') {
-                await handleGroupParticipantUpdate(sock, anu)
+                console.error('Message Handling Error:', err)
             }
         })
 
@@ -186,14 +172,16 @@ async function startLizaBot() {
             } else return jid
         }
 
-        sock.public = config.MODE === 'public';
-        sock.plugins = global.plugins;
+        sock.ev.on('group-participants.update', async (anu) => {
+            if (typeof handleGroupParticipantUpdate === 'function') {
+                await handleGroupParticipantUpdate(sock, anu)
+            }
+        })
 
         return sock
     } catch (error) {
-        console.error('Error:', error)
-        await delay(5000)
-        startLizaBot()
+        console.error('Fatal Error:', error)
+        setTimeout(() => startLizaBot(), 10000)
     }
 }
 
