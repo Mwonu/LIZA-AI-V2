@@ -24,18 +24,31 @@ async function handleMessages(sock, chatUpdate) {
         const msgBody = m.body || "";
         const prefix = config.PREFIX;
         
-        const isCommand = msgBody.startsWith(prefix);
-        const command = isCommand ? msgBody.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase() : "";
+        // --- 🔍 കമാൻഡ് തിരിച്ചറിയൽ ലോജിക് ---
+        const isPrefixMsg = msgBody.startsWith(prefix);
+        let command = "";
+        
+        if (isPrefixMsg) {
+            // പ്രിഫിക്സ് ഉണ്ടെങ്കിൽ അത് കട്ട് ചെയ്ത് കമാൻഡ് എടുക്കുന്നു
+            command = msgBody.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase();
+        } else if (config.NO_PREFIX) {
+            // പ്രിഫിക്സ് ഇല്ലെങ്കിലും NO_PREFIX മോഡ് ഓൺ ആണെങ്കിൽ കമാൻഡ് എടുക്കുന്നു
+            command = msgBody.trim().split(/\s+/)[0].toLowerCase();
+        }
+
         const args = msgBody.trim().split(/\s+/).slice(1);
+        const isCommand = command !== ""; // കമാൻഡ് ഉണ്ടോ എന്ന് ഉറപ്പിക്കുന്നു
 
         // Owner check
         const isOwner = m.sender.split('@')[0] === config.OWNER_NUMBER || m.key.fromMe;
 
-        if (isCommand) {
+        if (isCommand && isPrefixMsg) {
             console.log(chalk.green(`🚀 Command Detected: ${command} | From: ${m.sender}`));
+        } else if (isCommand && config.NO_PREFIX) {
+            console.log(chalk.green(`🚀 No-Prefix Command: ${command} | From: ${m.sender}`));
         }
 
-        // --- 📢 STARTUP NOTIFICATION (ഫിക്സ് ചെയ്തത്) ---
+        // --- 📢 STARTUP NOTIFICATION ---
         if (!hasNotified && isOwner && isCommand) {
             try {
                 await sock.sendMessage(m.chat, { text: "🤖 *LIZA-AI V2 Online!*" });
@@ -80,7 +93,6 @@ async function handleMessages(sock, chatUpdate) {
                 if (isMatch) {
                     pluginFound = true;
                     try {
-                        // പ്ലഗിൻ എക്സിക്യൂട്ട് ചെയ്യുന്നു
                         await plugin.execute(sock, m, { args, command, isOwner, prefix });
                     } catch (err) {
                         console.error(chalk.red(`❌ Error in ${file}:`), err);
