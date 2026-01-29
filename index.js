@@ -102,17 +102,21 @@ async function startLizaBot() {
             version,
             logger: pino({ level: 'silent' }),
             printQRInTerminal: !process.env.SESSION_ID,
-            browser: ["LIZA-AI V2", "Chrome", "110.0.5481.178"],
+            // Desktop browser ഉപയോഗിക്കുന്നത് കണക്ഷൻ സ്ഥിരത കൂട്ടാൻ സഹായിക്കും
+            browser: ["LIZA-AI V2", "Desktop", "10.0.0"],
             auth: {
                 creds: state.creds,
                 keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
             },
-            markOnlineOnConnect: false, // സ്റ്റെബിലിറ്റിക്ക് വേണ്ടി ഇത് false ആക്കി
+            markOnlineOnConnect: false, 
             syncFullHistory: false, 
-            shouldSyncHistoryMessage: () => false, // ഹിസ്റ്ററി സിങ്ക് പൂർണ്ണമായും ബ്ലോക്ക് ചെയ്തു
+            fireInitQueries: false, // അധികമുള്ള ക്വറികൾ ഒഴിവാക്കുന്നു
+            shouldSyncHistoryMessage: () => false, 
             msgRetryCounterCache,
             connectTimeoutMs: 60000,
-            keepAliveIntervalMs: 30000,
+            defaultQueryTimeoutMs: 0,
+            keepAliveIntervalMs: 10000,
+            generateHighQualityLinkPreview: false,
         })
 
         sock.ev.on('creds.update', saveCreds)
@@ -125,25 +129,28 @@ async function startLizaBot() {
             if (connection === "open") {
                 console.log(chalk.blue.bold(`\n---------------------------------`));
                 console.log(chalk.white(`🤖 LIZA-AI V2 is Online!`));
-                console.log(chalk.white(`👨‍💻 Dev: (hank!nd3 p4d4y41!)`));
+                console.log(chalk.white(`👨‍💻 Dev: chank!nd3 p4d4y41!`)); // പേര് അപ്ഡേറ്റ് ചെയ്തു
                 console.log(chalk.blue.bold(`---------------------------------\n`));
                 
-                // 20 സെക്കൻഡ് കഴിഞ്ഞ് മാത്രം നോട്ടിഫിക്കേഷൻ
                 setTimeout(async () => {
                     try {
                         const botNumber = sock.decodeJid(sock.user.id);
                         await sock.sendMessage(botNumber, { 
-                            text: `✅ *LIZA-AI V2 Connected!* \n\n*Developer:* (hank!nd3 p4d4y41!)` 
+                            text: `✅ *LIZA-AI V2 കണക്ട് ആയി!* \n\n*Dev:* chank!nd3 p4d4y41!\n*Plugins:* ${global.plugins.size}` 
                         });
                     } catch (e) {}
-                }, 20000);
+                }, 15000);
             }
             
             if (connection === 'close') {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-                if (reason !== DisconnectReason.loggedOut) {
-                    // പെട്ടെന്ന് റീസ്റ്റാർട്ട് ചെയ്യാതെ 5 സെക്കൻഡ് ഗ്യാപ്പ് നൽകുന്നു
-                    console.log(chalk.red(`❌ Connection Lost (${reason}). Reconnecting in 5s...`));
+                
+                // 440 (Stream Error) ഉണ്ടെങ്കിൽ 10 സെക്കൻഡ് ഗ്യാപ്പ് നൽകി റീസ്റ്റാർട്ട് ചെയ്യുന്നു
+                if (reason === DisconnectReason.restartRequired || reason === 440) {
+                    console.log(chalk.red(`⚠️ Connection Issue (${reason}). Reconnecting in 10s...`));
+                    setTimeout(() => startLizaBot(), 10000);
+                } else if (reason !== DisconnectReason.loggedOut) {
+                    console.log(chalk.red(`❌ Connection Closed (${reason}). Retrying in 5s...`));
                     setTimeout(() => startLizaBot(), 5000);
                 } else {
                     console.log(chalk.red('❌ Logged Out. Update SESSION_ID.'));
