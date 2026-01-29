@@ -1,6 +1,6 @@
 /**
  * LIZA-AI V2 - Message Handler
- * Developer: chank!nd3 p4d4y41!
+ * Developer: (hank!nd3 p4d4y41!
  */
 
 const config = require('./config');
@@ -15,13 +15,15 @@ let hasNotified = false;
 async function handleMessages(sock, chatUpdate) {
     try {
         let mek = chatUpdate.messages[0];
-        if (!mek.message) return;
+        if (!mek || !mek.message) return;
         
         // Ephemeral handling
         mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
         
         const m = smsg(sock, mek);
-        const msgBody = m.body || "";
+        if (!m) return; // സന്ദേശം ശരിയായി ലഭിച്ചില്ലെങ്കിൽ ഒഴിവാക്കുന്നു
+
+        const msgBody = (m.body || "").trim();
         const prefix = config.PREFIX;
         
         // --- 🔍 കമാൻഡ് തിരിച്ചറിയൽ ലോജിക് ---
@@ -29,23 +31,20 @@ async function handleMessages(sock, chatUpdate) {
         let command = "";
         
         if (isPrefixMsg) {
-            // പ്രിഫിക്സ് ഉണ്ടെങ്കിൽ അത് കട്ട് ചെയ്ത് കമാൻഡ് എടുക്കുന്നു
             command = msgBody.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase();
         } else if (config.NO_PREFIX) {
-            // പ്രിഫിക്സ് ഇല്ലെങ്കിലും NO_PREFIX മോഡ് ഓൺ ആണെങ്കിൽ കമാൻഡ് എടുക്കുന്നു
-            command = msgBody.trim().split(/\s+/)[0].toLowerCase();
+            command = msgBody.split(/\s+/)[0].toLowerCase();
         }
 
-        const args = msgBody.trim().split(/\s+/).slice(1);
-        const isCommand = command !== ""; // കമാൻഡ് ഉണ്ടോ എന്ന് ഉറപ്പിക്കുന്നു
+        const args = msgBody.split(/\s+/).slice(1);
+        const isCommand = command !== ""; 
 
-        // Owner check
-        const isOwner = m.sender.split('@')[0] === config.OWNER_NUMBER || m.key.fromMe;
+        // Owner check (LID അപ്ഡേറ്റ് അടക്കം സുരക്ഷിതമാക്കിയത്)
+        const senderNumber = m.sender ? m.sender.split('@')[0] : "";
+        const isOwner = senderNumber === config.OWNER_NUMBER || m.key.fromMe;
 
         if (isCommand && isPrefixMsg) {
-            console.log(chalk.green(`🚀 Command Detected: ${command} | From: ${m.sender}`));
-        } else if (isCommand && config.NO_PREFIX) {
-            console.log(chalk.green(`🚀 No-Prefix Command: ${command} | From: ${m.sender}`));
+            console.log(chalk.green(`🚀 Command Detected: ${command} | From: ${senderNumber}`));
         }
 
         // --- 📢 STARTUP NOTIFICATION ---
@@ -71,6 +70,8 @@ async function handleMessages(sock, chatUpdate) {
                 const fileName = `gist_${Date.now()}.js`;
                 const filePath = path.join(__dirname, 'plugins', fileName);
                 fs.writeFileSync(filePath, response.data);
+                
+                // പ്ലഗിൻ ലോഡ് ചെയ്യുന്നു
                 const newPlugin = require(filePath);
                 if (newPlugin.command) {
                     global.plugins.set(fileName, newPlugin);
