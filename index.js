@@ -1,6 +1,5 @@
 /**
- * LIZA-AI V2 - Core Engine (Plugin Enabled)
- * Optimized for Railway Deployment
+ * LIZA-AI V2 - Core Engine (Optimized)
  * Developer: (hank!nd3 p4d4y41!
  */
 
@@ -51,7 +50,7 @@ function loadPlugins() {
 
 loadPlugins();
 
-// --- 🌐 RAILWAY SERVER SETUP ---
+// --- 🌐 SERVER SETUP ---
 const app = express();
 const port = process.env.PORT || 8080; 
 
@@ -65,27 +64,21 @@ const { makeInMemoryStore } = require('./lib/lightweight_store')
 const store = makeInMemoryStore()
 store.readFromFile('./baileys_store.json')
 
-const config = require('./config') 
-
 setInterval(() => {
     try {
         store.writeToFile('./baileys_store.json')
-    } catch (e) {
-        // Console spam ഒഴിവാക്കാൻ ലോഗ് സൈലന്റ് ആക്കി
-    }
-}, 30000) // 30 സെക്കൻഡിലൊരിക്കൽ മാത്രം സ്റ്റോർ അപ്ഡേറ്റ് ചെയ്യുന്നു
+    } catch (e) {}
+}, 30000)
 
 async function startLizaBot() {
     try {
         if (!fs.existsSync('./session')) fs.mkdirSync('./session');
         
-        // --- 🔑 SESSION INITIALIZATION ---
+        // --- 🔑 SESSION DECODER (FIXED) ---
         if (!fs.existsSync('./session/creds.json') && process.env.SESSION_ID) {
             try {
-                let sessionID = process.env.SESSION_ID;
-                let sessionData = sessionID.includes('LIZA~') 
-                    ? sessionID.split('LIZA~')[1] 
-                    : (sessionID.includes('Session~') ? sessionID.split('Session~')[1] : sessionID);
+                let sessionID = process.env.SESSION_ID.trim();
+                let sessionData = sessionID.replace(/LIZA~|Session~/g, "");
                 
                 const buffer = Buffer.from(sessionData, 'base64');
                 fs.writeFileSync('./session/creds.json', buffer.toString());
@@ -103,7 +96,6 @@ async function startLizaBot() {
             version,
             logger: pino({ level: 'silent' }),
             printQRInTerminal: !process.env.SESSION_ID,
-            // കണക്ഷൻ സ്റ്റെബിലിറ്റിക്കായി ഡെസ്ക്ടോപ്പ് ബ്രൗസർ സെറ്റിംഗ്സ്
             browser: ["LIZA-AI V2", "Chrome", "20.0.04"],
             auth: {
                 creds: state.creds,
@@ -112,13 +104,12 @@ async function startLizaBot() {
             markOnlineOnConnect: true, 
             generateHighQualityLinkPreview: true,
             msgRetryCounterCache,
-            defaultQueryTimeoutMs: undefined, // അനന്തമായി വെയിറ്റ് ചെയ്യുന്നത് ഒഴിവാക്കാൻ
         })
 
         sock.ev.on('creds.update', saveCreds)
         store.bind(sock.ev)
 
-        // --- 📡 CONNECTION MONITORING ---
+        // --- 📡 CONNECTION MONITORING (FIXED LOOP) ---
         sock.ev.on('connection.update', async (s) => {
             const { connection, lastDisconnect } = s
             if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting to WhatsApp...'))
@@ -134,14 +125,12 @@ async function startLizaBot() {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 console.log(chalk.red(`❌ Connection Closed: ${reason}`));
 
-                if (reason === DisconnectReason.restartRequired || reason === 440) {
-                    console.log(chalk.yellow('🔄 Restarting to fix stream error...'));
+                if (reason === DisconnectReason.restartRequired) {
                     startLizaBot();
-                } else if (reason === DisconnectReason.loggedOut) {
-                    console.log(chalk.bgRed('‼️ WhatsApp Account Logged Out! Delete session folder and update SESSION_ID.'));
-                    process.exit(0);
+                } else if (reason === 440 || reason === DisconnectReason.loggedOut || reason === DisconnectReason.badSession) {
+                    console.log(chalk.bgRed('‼️ Session Conflict or Expired! Please update SESSION_ID and Re-deploy.'));
+                    process.exit(1); // ലൂപ്പ് ഒഴിവാക്കാൻ പ്രോസസ്സ് നിർത്തുന്നു
                 } else {
-                    // മറ്റു കാരണങ്ങൾ ഉണ്ടെങ്കിൽ 5 സെക്കൻഡിന് ശേഷം വീണ്ടും ശ്രമിക്കും
                     setTimeout(() => startLizaBot(), 5000);
                 }
             }
@@ -151,13 +140,10 @@ async function startLizaBot() {
             try {
                 const mek = chatUpdate.messages[0]
                 if (!mek || !mek.message) return
-                
-                // സ്റ്റാറ്റസ് ഓട്ടോ വ്യൂ അല്ലെങ്കിൽ ഇഗ്നോർ ചെയ്യാൻ
                 if (mek.key && mek.key.remoteJid === 'status@broadcast') {
                     if (typeof handleStatus === 'function') await handleStatus(sock, chatUpdate);
                     return;
                 }
-
                 await handleMessages(sock, chatUpdate)
             } catch (err) {
                 console.error('Message Handling Error:', err)
