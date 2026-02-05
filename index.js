@@ -1,6 +1,6 @@
 /**
  * LIZA-AI V2 - Core Engine (Optimized)
- * Developer: (hank!nd3 p4d4y41!
+ * Developer: (chank!nd3 p4d4y41!)
  */
 
 require('./config') 
@@ -109,7 +109,7 @@ async function startLizaBot() {
         sock.ev.on('creds.update', saveCreds)
         store.bind(sock.ev)
 
-        // --- 📡 CONNECTION MONITORING (FIXED LOOP) ---
+        // --- 📡 CONNECTION MONITORING (STRONGER LOGIC) ---
         sock.ev.on('connection.update', async (s) => {
             const { connection, lastDisconnect } = s
             if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting to WhatsApp...'))
@@ -117,7 +117,7 @@ async function startLizaBot() {
             if (connection === "open") {
                 console.log(chalk.blue.bold(`\n---------------------------------`));
                 console.log(chalk.white(`🤖 LIZA-AI V2 Status: ONLINE`));
-                console.log(chalk.white(`👨‍💻 Developer: (hank!nd3 p4d4y41!`));
+                console.log(chalk.white(`👨‍💻 Developer: (chank!nd3 p4d4y41!)`));
                 console.log(chalk.blue.bold(`---------------------------------\n`));
             }
             
@@ -125,12 +125,15 @@ async function startLizaBot() {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 console.log(chalk.red(`❌ Connection Closed: ${reason}`));
 
-                if (reason === DisconnectReason.restartRequired) {
+                // ലോഗൗട്ട് ആകാത്ത എല്ലാ സാഹചര്യത്തിലും തനിയെ റീസ്റ്റാർട്ട് ചെയ്യും
+                if (reason === DisconnectReason.loggedOut) {
+                    console.log(chalk.bgRed('‼️ Logged Out! Please update SESSION_ID and Re-deploy.'));
+                    process.exit(1); 
+                } else if (reason === DisconnectReason.restartRequired || reason === 408) {
+                    console.log(chalk.yellow('♻️ Restarting session...'));
                     startLizaBot();
-                } else if (reason === 440 || reason === DisconnectReason.loggedOut || reason === DisconnectReason.badSession) {
-                    console.log(chalk.bgRed('‼️ Session Conflict or Expired! Please update SESSION_ID and Re-deploy.'));
-                    process.exit(1); // ലൂപ്പ് ഒഴിവാക്കാൻ പ്രോസസ്സ് നിർത്തുന്നു
                 } else {
+                    console.log(chalk.yellow(`🩹 Attempting to reconnect in 5s...`));
                     setTimeout(() => startLizaBot(), 5000);
                 }
             }
