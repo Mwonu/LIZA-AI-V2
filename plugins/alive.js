@@ -1,35 +1,36 @@
 /**
- * LIZA-AI V2 - Alive Plugin
- * Fixed ESM & Function Wrapper Error
+ * Alive Plugin - LIZA-AI V2
+ * Developer: (hank!nd3 p4d4y41!
  */
 
-const handler = async (sock, m, { prefix }) => {
-    try {
-        const text = `🤖 *LIZA-AI V2 Is Alive!* \n\n` +
-                     `👨‍💻 *Developer:* (chank!nd3 p4d4y41!\n` +
-                     `🛰 *Status:* Running on Render\n` +
-                     `📟 *Prefix:* ${prefix}`;
-        
-        await sock.sendMessage(m.chat, { 
-            text: text,
-            contextInfo: {
-                externalAdReply: {
-                    title: "LIZA-AI V2 ONLINE",
-                    body: "(hank!nd3 p4d4y41!",
-                    thumbnailUrl: "https://telegra.ph/file/dcce2a395297660707324.jpg", 
-                    sourceUrl: "https://github.com/",
-                    mediaType: 1,
-                    renderLargerThumbnail: true
+module.exports = {
+    command: ['alive', 'status'],
+    category: 'main',
+    description: 'ബോട്ട് ഓൺലൈൻ ആണോ എന്ന് പരിശോധിക്കാൻ',
+    async execute(sock, m, { prefix }) {
+        try {
+            const text = `🤖 *LIZA-AI V2 IS ONLINE* \n\n` +
+                         `👨‍💻 *Dev:* (hank!nd3 p4d4y41!\n` +
+                         `📟 *Prefix:* [ ${prefix} ]\n` +
+                         `🛰 *Status:* Stable on Render\n\n` +
+                         `_How can I help you today?_`;
+
+            await sock.sendMessage(m.chat, { 
+                text: text,
+                contextInfo: {
+                    externalAdReply: {
+                        title: "LIZA-AI V2",
+                        body: "WhatsApp Bot Project",
+                        // താഴെ കാണുന്ന ലിങ്കിൽ നിങ്ങളുടെ ഫോട്ടോ മാറ്റാം
+                        thumbnailUrl: "https://telegra.ph/file/dcce2a395297660707324.jpg", 
+                        sourceUrl: "https://github.com/",
+                        mediaType: 1,
+                        renderLargerThumbnail: true
+                    }
                 }
-            }
-        }, { quoted: m });
-
-    } catch (err) {
-        console.error("❌ Error in alive.js:", err);
+            });
+        } catch (e) {
+            console.error("Alive Plugin Error: ", e);
+        }
     }
-};
-
-// കമാൻഡ് സെറ്റിംഗ്സ്
-handler.command = ['alive']; 
-
-module.exports = handler;
+}
