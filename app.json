@@ -1,0 +1,21 @@
+{
+  "name": "LIZA-AI V2",
+  "description": "WhatsApp Bot developed by (chank!nd3 p4d4y41!)",
+  "repository": "https://github.com/നിന്റെ-യൂസർനെയിം/നിന്റെ-റെപ്പോ-പേര്",
+  "logo": "https://telegra.ph/file/നിന്റെ-ലോഗോ-ലിങ്ക്.jpg",
+  "env": {
+    "SESSION_ID": {
+      "description": "നിങ്ങളുടെ WhatsApp Session ID ഇവിടെ നൽകുക",
+      "required": true
+    },
+    "DATABASE_URL": {
+      "description": "നിങ്ങളുടെ MongoDB URL ഇവിടെ നൽകുക (പ്ലഗിനുകൾ പെർമനന്റ് ആകാൻ)",
+      "required": true
+    },
+    "OWNER_NUMBER": {
+      "description": "നിങ്ങളുടെ ഫോൺ നമ്പർ (ഉദാ: 919876543210)",
+      "required": true
+    }
+  },
+  "stack": "container"
+}
