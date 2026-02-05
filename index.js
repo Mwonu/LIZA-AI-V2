@@ -1,5 +1,5 @@
 /**
- * LIZA-AI V2 - Core Engine (Optimized)
+ * LIZA-AI V2 - Core Engine (MongoDB Permanent Plugins)
  * Developer: (chank!nd3 p4d4y41!)
  */
 
@@ -8,6 +8,7 @@ const { Boom } = require('@hapi/boom')
 const fs = require('fs')
 const chalk = require('chalk')
 const path = require('path')
+const mongoose = require('mongoose') // MongoDB കണക്ഷന് വേണ്ടി
 const { handleMessages, handleGroupParticipantUpdate, handleStatus } = require('./main');
 const { smsg } = require('./lib/myfunc')
 const {
@@ -22,6 +23,33 @@ const {
 const NodeCache = require("node-cache")
 const pino = require("pino")
 const express = require('express');
+
+// --- 🗄️ MONGODB SETUP ---
+const PluginSchema = new mongoose.Schema({
+    name: { type: String, unique: true },
+    content: String
+});
+const PluginModel = mongoose.model('Plugin', PluginSchema);
+
+async function syncPluginsFromDB() {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+        console.log(chalk.red("⚠️ DATABASE_URL കണ്ടുപിടിക്കാനായില്ല. പ്ലഗിൻ സിങ്ക് ചെയ്യില്ല."));
+        return;
+    }
+    try {
+        await mongoose.connect(dbUrl);
+        const savedPlugins = await PluginModel.find();
+        if (!fs.existsSync(pluginFolder)) fs.mkdirSync(pluginFolder);
+        
+        savedPlugins.forEach(plugin => {
+            fs.writeFileSync(path.join(pluginFolder, plugin.name), plugin.content);
+        });
+        console.log(chalk.green(`✅ MongoDB-ൽ നിന്ന് ${savedPlugins.length} പ്ലഗിനുകൾ വിജയകരമായി സിങ്ക് ചെയ്തു!`));
+    } catch (e) {
+        console.log(chalk.red("❌ MongoDB Sync Error: " + e.message));
+    }
+}
 
 // --- 📂 PLUGIN LOADER ---
 global.plugins = new Map();
@@ -48,8 +76,6 @@ function loadPlugins() {
     console.log(chalk.green(`✅ Successfully loaded ${global.plugins.size} plugins!`));
 }
 
-loadPlugins();
-
 // --- 🌐 SERVER SETUP ---
 const app = express();
 const port = process.env.PORT || 8080; 
@@ -72,19 +98,20 @@ setInterval(() => {
 
 async function startLizaBot() {
     try {
+        // പ്ലഗിനുകൾ ലോഡ് ചെയ്യുന്നതിന് മുൻപ് DB-യിൽ നിന്ന് സിങ്ക് ചെയ്യുന്നു
+        await syncPluginsFromDB();
+        loadPlugins();
+
         if (!fs.existsSync('./session')) fs.mkdirSync('./session');
         
-        // --- 🔑 STRONGER SESSION DECODER (FIXED) ---
+        // --- 🔑 STRONGER SESSION DECODER ---
         if (process.env.SESSION_ID) {
             try {
                 const sessionPath = './session/creds.json';
                 let sessionID = process.env.SESSION_ID.trim();
-                // എല്ലാത്തരം സെഷൻ പ്രിഫിക്സുകളും ക്ലീൻ ചെയ്യുന്നു
                 let sessionData = sessionID.replace(/LIZA~|Session~|LizaBot~|Liza~/g, "");
-                
                 const decodedBuffer = Buffer.from(sessionData, 'base64').toString('utf-8');
 
-                // സെഷൻ ഫയൽ ഇല്ലെങ്കിൽ അല്ലെങ്കിൽ പഴയതാണെങ്കിൽ മാത്രം പുതുക്കുന്നു
                 if (!fs.existsSync(sessionPath) || fs.readFileSync(sessionPath, 'utf-8') !== decodedBuffer) {
                     fs.writeFileSync(sessionPath, decodedBuffer);
                     console.log(chalk.green('✅ Session ID Successfully Synchronized!'));
@@ -110,14 +137,12 @@ async function startLizaBot() {
             markOnlineOnConnect: true, 
             generateHighQualityLinkPreview: true,
             msgRetryCounterCache,
-            // കണക്ഷൻ കൂടുതൽ നേരം നിലനിർത്താൻ
             keepAliveIntervalMs: 30000,
         })
 
         sock.ev.on('creds.update', saveCreds)
         store.bind(sock.ev)
 
-        // --- 📡 CONNECTION MONITORING ---
         sock.ev.on('connection.update', async (s) => {
             const { connection, lastDisconnect } = s
             if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting to WhatsApp...'))
@@ -131,15 +156,10 @@ async function startLizaBot() {
             
             if (connection === 'close') {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-                console.log(chalk.red(`❌ Connection Closed: ${reason}`));
-
                 if (reason === DisconnectReason.loggedOut) {
-                    console.log(chalk.bgRed('‼️ Logged Out! Please update SESSION_ID and Re-deploy.'));
-                    // ലോഗൗട്ട് ആയാൽ സെഷൻ ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു (അടുത്ത തവണ പുതിയത് എടുക്കാൻ)
                     if (fs.existsSync('./session/creds.json')) fs.unlinkSync('./session/creds.json');
                     process.exit(1); 
                 } else {
-                    console.log(chalk.yellow(`🩹 Attempting to reconnect in 5s...`));
                     setTimeout(() => startLizaBot(), 5000);
                 }
             }
