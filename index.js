@@ -74,15 +74,21 @@ async function startLizaBot() {
     try {
         if (!fs.existsSync('./session')) fs.mkdirSync('./session');
         
-        // --- 🔑 SESSION DECODER (FIXED) ---
-        if (!fs.existsSync('./session/creds.json') && process.env.SESSION_ID) {
+        // --- 🔑 STRONGER SESSION DECODER (FIXED) ---
+        if (process.env.SESSION_ID) {
             try {
+                const sessionPath = './session/creds.json';
                 let sessionID = process.env.SESSION_ID.trim();
-                let sessionData = sessionID.replace(/LIZA~|Session~/g, "");
+                // എല്ലാത്തരം സെഷൻ പ്രിഫിക്സുകളും ക്ലീൻ ചെയ്യുന്നു
+                let sessionData = sessionID.replace(/LIZA~|Session~|LizaBot~|Liza~/g, "");
                 
-                const buffer = Buffer.from(sessionData, 'base64');
-                fs.writeFileSync('./session/creds.json', buffer.toString());
-                console.log(chalk.green('✅ Session ID Successfully Extracted!'));
+                const decodedBuffer = Buffer.from(sessionData, 'base64').toString('utf-8');
+
+                // സെഷൻ ഫയൽ ഇല്ലെങ്കിൽ അല്ലെങ്കിൽ പഴയതാണെങ്കിൽ മാത്രം പുതുക്കുന്നു
+                if (!fs.existsSync(sessionPath) || fs.readFileSync(sessionPath, 'utf-8') !== decodedBuffer) {
+                    fs.writeFileSync(sessionPath, decodedBuffer);
+                    console.log(chalk.green('✅ Session ID Successfully Synchronized!'));
+                }
             } catch (e) {
                 console.log(chalk.red('❌ Session ID Decoding Error: ' + e.message));
             }
@@ -104,12 +110,14 @@ async function startLizaBot() {
             markOnlineOnConnect: true, 
             generateHighQualityLinkPreview: true,
             msgRetryCounterCache,
+            // കണക്ഷൻ കൂടുതൽ നേരം നിലനിർത്താൻ
+            keepAliveIntervalMs: 30000,
         })
 
         sock.ev.on('creds.update', saveCreds)
         store.bind(sock.ev)
 
-        // --- 📡 CONNECTION MONITORING (STRONGER LOGIC) ---
+        // --- 📡 CONNECTION MONITORING ---
         sock.ev.on('connection.update', async (s) => {
             const { connection, lastDisconnect } = s
             if (connection === 'connecting') console.log(chalk.yellow('🔄 Connecting to WhatsApp...'))
@@ -125,13 +133,11 @@ async function startLizaBot() {
                 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
                 console.log(chalk.red(`❌ Connection Closed: ${reason}`));
 
-                // ലോഗൗട്ട് ആകാത്ത എല്ലാ സാഹചര്യത്തിലും തനിയെ റീസ്റ്റാർട്ട് ചെയ്യും
                 if (reason === DisconnectReason.loggedOut) {
                     console.log(chalk.bgRed('‼️ Logged Out! Please update SESSION_ID and Re-deploy.'));
+                    // ലോഗൗട്ട് ആയാൽ സെഷൻ ഫയൽ ഡിലീറ്റ് ചെയ്യുന്നു (അടുത്ത തവണ പുതിയത് എടുക്കാൻ)
+                    if (fs.existsSync('./session/creds.json')) fs.unlinkSync('./session/creds.json');
                     process.exit(1); 
-                } else if (reason === DisconnectReason.restartRequired || reason === 408) {
-                    console.log(chalk.yellow('♻️ Restarting session...'));
-                    startLizaBot();
                 } else {
                     console.log(chalk.yellow(`🩹 Attempting to reconnect in 5s...`));
                     setTimeout(() => startLizaBot(), 5000);
