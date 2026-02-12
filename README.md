@@ -1,6 +1,6 @@
 # 🚀 LIZA-AI V2 DEPLOYMENT
 
-നിങ്ങൾക്ക് ഈ ബോട്ട് റെൻഡറിൽ ഡിപ്ലോയ് ചെയ്യാൻ താഴെ കാണുന്ന ബട്ടൺ അമർത്താം:
+You can press the button below to deploy this bot in render:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/നിന്റെ-യൂസർനെയിം/നിന്റെ-റെപ്പോ-പേര്)
 
